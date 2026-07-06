@@ -4,17 +4,16 @@ example.py - Relingo CLI built on top of the relingo Python SDK.
 
 Subcommands (all read a saved token from disk by default; run `login` once):
 
-    login    <email>        send verification code, prompt for it, persist token
-    logout                  remove the saved token from disk
-    whoami                  show the current account / token status
-    config                  show wordbook ids (strange / mastered / custom)
-    list                    list wordbooks (alias of `config`)
-    add     <word>          mark a word as mastered
-    remove  <word>          mark a word as forgotten (move back to strange)
-    lookup  <word>          look up a word in user books, fallback to dict
-                            (with case-insensitive retry: "Alpine" -> "alpine")
-    translate --provider ID <text...>
-                            translate a paragraph
+    login    <email>                        send verification code, prompt for it, persist token
+    logout                                  remove the saved token from disk
+    whoami                                  show the current account / token status
+    config                                  show wordbook ids (strange / mastered / active)
+    list                                    list wordbooks (alias of `config`)
+    mark mastered|forgotten  <word>         mark a word as mastered or mark a word as forgotten
+                                            (move back to strange)
+    lookup  <word>                          look up a word in user books, fallback to dict
+                                            (with case-insensitive retry: "Alpine" -> "alpine")
+    translate --provider ID <text...>       translate a paragraph
 
 Legacy usage (still works, equivalent to a one-shot demo):
 
@@ -263,8 +262,8 @@ def cmd_config(args):
         try:
             print(f"strange_book  = {cfg.strange_book or '(<none>)'}")
             print(f"mastered_book = {cfg.mastered_book or '(<none>)'}")
-            print(f"custom_books  = {cfg.n_custom_books}")
-            for i, bid in enumerate(cfg.custom_books):
+            print(f"active_books  = {cfg.n_active_books}")
+            for i, bid in enumerate(cfg.active_books):
                 print(f"  [{i}] {bid}")
             return 0
         finally:
@@ -297,18 +296,18 @@ def _do_vocab_op(c, word, op_name, sdk_fn):
         relingo.relingo_config_free(cfg)
 
 
-def cmd_add(args):
+def cmd_mark_mastered(args):
     c = _client_from_credentials()
     try:
-        return _do_vocab_op(c, args.word, "add", relingo.relingo_submit_vocabulary)
+        return _do_vocab_op(c, args.word, "mark mastered", relingo.relingo_mark_mastered)
     finally:
         relingo.relingo_client_free(c)
 
 
-def cmd_remove(args):
+def cmd_mark_forgotten(args):
     c = _client_from_credentials()
     try:
-        return _do_vocab_op(c, args.word, "remove", relingo.relingo_remove_vocabulary_words)
+        return _do_vocab_op(c, args.word, "mark forgotten", relingo.relingo_mark_forgotten)
     finally:
         relingo.relingo_client_free(c)
 
@@ -332,7 +331,7 @@ def cmd_lookup(args):
             vocab = []
             if cfg.strange_book:
                 vocab.append(cfg.strange_book)
-            for cb in cfg.custom_books[: 16 - len(vocab)]:
+            for cb in cfg.active_books[: 16 - len(vocab)]:
                 vocab.append(cb)
             n_vocab = len(vocab)
 
@@ -426,13 +425,13 @@ def legacy_main(argv):
             return 1
         print(f"strange_book  = {cfg.strange_book or '(none)'}")
         print(f"mastered_book = {cfg.mastered_book or '(none)'}")
-        print(f"custom_books  = {cfg.n_custom_books}")
+        print(f"active_books  = {cfg.n_active_books}")
 
         w = relingo.RelingoWord()
         vocab = []
         if cfg.strange_book:
             vocab.append(cfg.strange_book)
-        for cb in cfg.custom_books[: 16 - len(vocab)]:
+        for cb in cfg.active_books[: 16 - len(vocab)]:
             vocab.append(cb)
         n_vocab = len(vocab)
         rc = _lookup_word(c, vocab, n_vocab, word, w)
@@ -481,13 +480,14 @@ def _build_parser():
     p_list = sub.add_parser("list", help="list wordbooks (alias of `config`)")
     p_list.set_defaults(func=cmd_list)
 
-    p_add = sub.add_parser("add", help="mark a word as mastered")
-    p_add.add_argument("word")
-    p_add.set_defaults(func=cmd_add)
-
-    p_remove = sub.add_parser("remove", help="mark a word as forgotten")
-    p_remove.add_argument("word")
-    p_remove.set_defaults(func=cmd_remove)
+    p_mark = sub.add_parser("mark", help="mark a word as mastered or forgotten")
+    p_mark.add_argument("flag", choices=["mastered", "forgotten"])
+    p_mark.add_argument("word")
+    flag_to_func = {
+        "mastered":  cmd_mark_mastered,
+        "forgotten": cmd_mark_forgotten,
+    }
+    p_mark.set_defaults(func=lambda args: flag_to_func[args.flag](args))
 
     p_lookup = sub.add_parser("lookup", help="look up a word")
     p_lookup.add_argument("word")
@@ -495,7 +495,7 @@ def _build_parser():
 
     p_tr = sub.add_parser("translate", help="translate a paragraph")
     p_tr.add_argument("--provider", required=True, help="translation provider id")
-    p_tr.add_argument("text", nargs=argparse.REMAINDER, help="text to translate")
+    p_tr.add_argument("text", nargs="+", help="text to translate")
     p_tr.set_defaults(func=cmd_translate)
 
     return p
@@ -507,7 +507,7 @@ def main(argv=None):
     # Legacy: `python3 example.py <email> [word]` (no subcommand)
     if len(argv) >= 2 and not argv[1].startswith("-") and argv[1] not in {
         "login", "logout", "whoami", "config", "list",
-        "add", "remove", "lookup", "translate",
+        "mark", "lookup", "translate",
         "-h", "--help", "help",
     }:
         return legacy_main(argv)

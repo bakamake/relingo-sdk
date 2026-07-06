@@ -101,8 +101,8 @@ class RelingoConfig:
     """User wordbook IDs. Mirrors ``relingo_config_t``."""
     strange_book: Optional[str] = None
     mastered_book: Optional[str] = None
-    custom_books: list = field(default_factory=list)
-    n_custom_books: int = 0
+    active_books: list = field(default_factory=list)
+    n_active_books: int = 0
 
 
 def relingo_config_free(cfg):
@@ -110,8 +110,8 @@ def relingo_config_free(cfg):
         return
     cfg.strange_book = None
     cfg.mastered_book = None
-    cfg.custom_books = []
-    cfg.n_custom_books = 0
+    cfg.active_books = []
+    cfg.n_active_books = 0
 
 
 @dataclass
@@ -428,67 +428,41 @@ def relingo_get_user_config(c, out):
         return RELINGO_ERR_PARSE
 
     cfg = data.get("config")
-    lang_books = cfg.get("langBooks") if isinstance(cfg, dict) else None
-    en = lang_books.get("en") if isinstance(lang_books, dict) else None
-    if not isinstance(en, list):
-        _set_error(c, "config: langBooks.en not found")
+    current_books = cfg.get("currentBooks") if isinstance(cfg, dict) else None
+    if not isinstance(current_books, list):
+        _set_error(c, "config: currentBooks.en not found")
         return RELINGO_ERR_PARSE
 
-    custom_count = 0
-    for book in en:
-        if not isinstance(book, dict):
-            continue
-        name = book.get("name")
-        if not isinstance(name, str):
-            continue
-        if name in ("strange", "mastered"):
-            continue
-        if book.get("active") is True:
-            custom_count += 1
-
-    out.custom_books = []
-    if custom_count > 0:
-        k = 0
-        for book in en:
-            if k >= custom_count:
-                break
-            if not isinstance(book, dict):
-                continue
-            name = book.get("name")
-            if not isinstance(name, str):
-                continue
-            if name in ("strange", "mastered"):
-                continue
-            if book.get("active") is not True:
-                continue
-            cid = _jstr_field(book, "_id", "id")
-            if cid is not None:
-                out.custom_books.append(cid)
-                k += 1
-    out.n_custom_books = len(out.custom_books)
-
-    for book in en:
+    active_ids: list[str] = []
+    for book in current_books:
         if not isinstance(book, dict):
             continue
         name = book.get("name")
         if not isinstance(name, str):
             continue
         cid = _jstr_field(book, "_id", "id")
-        if cid is None:
+        if name == "strange":
+            # TODO: persist strange_book id across sessions so callers don't
+            # have to refetch /api/getUserConfig on every lookup.
+            if cid is not None and out.strange_book is None:
+                out.strange_book = cid
             continue
-        if name == "strange" and out.strange_book is None:
-            out.strange_book = cid
-        elif name == "mastered" and out.mastered_book is None:
-            out.mastered_book = cid
-        # else: id is a custom book we already accounted for above; drop it.
+        if name == "mastered":
+            if cid is not None and out.mastered_book is None:
+                out.mastered_book = cid
+            continue
+        if book.get("active") is True and cid is not None:
+            active_ids.append(cid)
 
+    out.active_books = active_ids
+    out.n_active_books = len(active_ids)
     return RELINGO_OK
 
 
 # --- Word lookup -------------------------------------------------------------
 
 def relingo_parse_content3(c, to, vocab_ids, n_vocab, word, out):
-    """Look up ``word`` in the user's wordbooks (strange + custom)."""
+    """Look up ``word`` in the user's wordbooks (strange + active)."""
     if c is None or not to or not word or out is None:
         return RELINGO_ERR_INVALID
     relingo_word_free(out)
@@ -566,12 +540,12 @@ def _vocabulary_op(c, endpoint, mastered_book_id, type_, word):
     return rc
 
 
-def relingo_submit_vocabulary(c, mastered_book_id, word):
+def relingo_mark_mastered(c, mastered_book_id, word):
     """Mark ``word`` as mastered (write to mastered_book)."""
     return _vocabulary_op(c, "/api/submitVocabulary", mastered_book_id, "mastered", word)
 
 
-def relingo_remove_vocabulary_words(c, mastered_book_id, word):
+def relingo_mark_forgotten(c, mastered_book_id, word):
     """Mark ``word`` as forgotten (move from mastered back to strange)."""
     return _vocabulary_op(c, "/api/removeVocabularyWords", mastered_book_id, "strange", word)
 
