@@ -37,7 +37,7 @@ saved to `~/.config/relingo/credentials.json` (mode 0600) and reused.
 the engine with `--provider`:
 
     python3 example.py translate release                 # -> 发布
-    python3 example.py translate --provider gpt-4o hello
+    python3 example.py translate hello
 
 ## SDK usage
 
