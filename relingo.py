@@ -20,7 +20,6 @@ from typing import Optional, Sequence
 
 import pycurl
 
-
 # --- Constants ---------------------------------------------------------------
 
 RELINGO_BASE_URL = "https://api.relingo.net"
@@ -32,37 +31,39 @@ RELINGO_USER_AGENT = (
 
 # --- Status codes ------------------------------------------------------------
 
+
 class RelingoStatus(IntEnum):
     """Status codes returned by every API function. Values match the C enum."""
-    RELINGO_OK            =  0   # success
-    RELINGO_ERR_INVALID   = -1   # invalid arguments
-    RELINGO_ERR_NOMEM     = -2   # allocation failed
-    RELINGO_ERR_NETWORK   = -3   # pycurl / DNS / connect failure
-    RELINGO_ERR_HTTP      = -4   # non-2xx HTTP status
-    RELINGO_ERR_PARSE     = -5   # JSON parse failure
-    RELINGO_ERR_API       = -6   # server returned non-zero code
-    RELINGO_ERR_NOT_FOUND = -7   # word not in dictionary
+
+    RELINGO_OK = 0  # success
+    RELINGO_ERR_INVALID = -1  # invalid arguments
+    RELINGO_ERR_NOMEM = -2  # allocation failed
+    RELINGO_ERR_NETWORK = -3  # pycurl / DNS / connect failure
+    RELINGO_ERR_HTTP = -4  # non-2xx HTTP status
+    RELINGO_ERR_PARSE = -5  # JSON parse failure
+    RELINGO_ERR_API = -6  # server returned non-zero code
+    RELINGO_ERR_NOT_FOUND = -7  # word not in dictionary
 
 
 # Aliases matching the C ``typedef enum { ... } relingo_status`` spelling.
-RELINGO_OK            = RelingoStatus.RELINGO_OK
-RELINGO_ERR_INVALID   = RelingoStatus.RELINGO_ERR_INVALID
-RELINGO_ERR_NOMEM     = RelingoStatus.RELINGO_ERR_NOMEM
-RELINGO_ERR_NETWORK   = RelingoStatus.RELINGO_ERR_NETWORK
-RELINGO_ERR_HTTP      = RelingoStatus.RELINGO_ERR_HTTP
-RELINGO_ERR_PARSE     = RelingoStatus.RELINGO_ERR_PARSE
-RELINGO_ERR_API       = RelingoStatus.RELINGO_ERR_API
+RELINGO_OK = RelingoStatus.RELINGO_OK
+RELINGO_ERR_INVALID = RelingoStatus.RELINGO_ERR_INVALID
+RELINGO_ERR_NOMEM = RelingoStatus.RELINGO_ERR_NOMEM
+RELINGO_ERR_NETWORK = RelingoStatus.RELINGO_ERR_NETWORK
+RELINGO_ERR_HTTP = RelingoStatus.RELINGO_ERR_HTTP
+RELINGO_ERR_PARSE = RelingoStatus.RELINGO_ERR_PARSE
+RELINGO_ERR_API = RelingoStatus.RELINGO_ERR_API
 RELINGO_ERR_NOT_FOUND = RelingoStatus.RELINGO_ERR_NOT_FOUND
 
 
 _STATUS_STR = {
-    RelingoStatus.RELINGO_OK:            "ok",
-    RelingoStatus.RELINGO_ERR_INVALID:   "invalid arguments",
-    RelingoStatus.RELINGO_ERR_NOMEM:     "out of memory",
-    RelingoStatus.RELINGO_ERR_NETWORK:   "network error",
-    RelingoStatus.RELINGO_ERR_HTTP:      "http error",
-    RelingoStatus.RELINGO_ERR_PARSE:     "json parse error",
-    RelingoStatus.RELINGO_ERR_API:       "api error",
+    RelingoStatus.RELINGO_OK: "ok",
+    RelingoStatus.RELINGO_ERR_INVALID: "invalid arguments",
+    RelingoStatus.RELINGO_ERR_NOMEM: "out of memory",
+    RelingoStatus.RELINGO_ERR_NETWORK: "network error",
+    RelingoStatus.RELINGO_ERR_HTTP: "http error",
+    RelingoStatus.RELINGO_ERR_PARSE: "json parse error",
+    RelingoStatus.RELINGO_ERR_API: "api error",
     RelingoStatus.RELINGO_ERR_NOT_FOUND: "not found",
 }
 
@@ -77,9 +78,11 @@ def relingo_status_str(s):
 
 # --- Result types ------------------------------------------------------------
 
+
 @dataclass
 class RelingoWord:
     """A single dictionary entry. Mirrors ``relingo_word_t``."""
+
     word: Optional[str] = None
     phonetic: Optional[str] = None
     translations: list = field(default_factory=list)
@@ -99,6 +102,7 @@ def relingo_word_free(w):
 @dataclass
 class RelingoConfig:
     """User wordbook IDs. Mirrors ``relingo_config_t``."""
+
     strange_book: Optional[str] = None
     mastered_book: Optional[str] = None
     active_books: list = field(default_factory=list)
@@ -117,6 +121,7 @@ def relingo_config_free(cfg):
 @dataclass
 class RelingoLogin:
     """Login result. Mirrors ``relingo_login_t``."""
+
     name: Optional[str] = None
     token: Optional[str] = None
     expired_at: int = 0  # Unix milliseconds
@@ -131,6 +136,7 @@ def relingo_login_free(r):
 
 
 # --- Client ------------------------------------------------------------------
+
 
 class RelingoClient:
     """Opaque client handle. One per thread; not internally synchronized."""
@@ -175,6 +181,7 @@ def relingo_client_last_error(c):
 
 
 # --- HTTP transport ----------------------------------------------------------
+
 
 class _DynBuf:
     __slots__ = ("data",)
@@ -242,6 +249,7 @@ def _http_post(c, path, body):
 
 
 # --- JSON helpers ------------------------------------------------------------
+
 
 def _parse_envelope(c, payload):
     """Parse ``{code, message, data}``.
@@ -335,6 +343,7 @@ def _extract_word(w, out):
 
 # --- Authentication ----------------------------------------------------------
 
+
 def relingo_authorization(c, email):
     """Send a verification code to the given email."""
     if c is None or not email:
@@ -380,6 +389,7 @@ def relingo_login_by_code(c, email, code, out):
 
 
 # --- User --------------------------------------------------------------------
+
 
 def relingo_get_user_info(c, out_token):
     """Refresh and return the new access token.
@@ -461,6 +471,7 @@ def relingo_get_user_config(c, out):
 
 # --- Word lookup -------------------------------------------------------------
 
+
 def relingo_parse_content3(c, to, vocab_ids, n_vocab, word, out):
     """Look up ``word`` in the user's wordbooks (strange + active)."""
     if c is None or not to or not word or out is None:
@@ -522,6 +533,7 @@ def relingo_lookup_dict2(c, to, word, out):
 
 # --- Vocabulary operations ---------------------------------------------------
 
+
 def _vocabulary_op(c, endpoint, mastered_book_id, type_, word):
     if c is None or not mastered_book_id or not type_ or not word:
         return RELINGO_ERR_INVALID
@@ -542,15 +554,20 @@ def _vocabulary_op(c, endpoint, mastered_book_id, type_, word):
 
 def relingo_mark_mastered(c, mastered_book_id, word):
     """Mark ``word`` as mastered (write to mastered_book)."""
-    return _vocabulary_op(c, "/api/submitVocabulary", mastered_book_id, "mastered", word)
+    return _vocabulary_op(
+        c, "/api/submitVocabulary", mastered_book_id, "mastered", word
+    )
 
 
 def relingo_mark_forgotten(c, mastered_book_id, word):
     """Mark ``word`` as forgotten (move from mastered back to strange)."""
-    return _vocabulary_op(c, "/api/removeVocabularyWords", mastered_book_id, "strange", word)
+    return _vocabulary_op(
+        c, "/api/removeVocabularyWords", mastered_book_id, "strange", word
+    )
 
 
 # --- Translation -------------------------------------------------------------
+
 
 def relingo_translate_paragraph(c, text, to, provider_id, out):
     """Translate a paragraph with the given provider.
@@ -569,7 +586,20 @@ def relingo_translate_paragraph(c, text, to, provider_id, out):
     if rc != RELINGO_OK:
         return rc
 
-    # TODO: verify actual response shape via curl before parsing. (Kept
-    # identical to the C SDK's behaviour: hand back the raw body.)
-    out[0] = resp
+    rc, data = _parse_envelope(c, resp)
+    if rc != RELINGO_OK:
+        return rc
+
+    # Response shape: {"code":0,"data":{"text":"<译文>","providerId":"..."}}
+    if isinstance(data, dict):
+        translated = data.get("text")
+    elif isinstance(data, str):
+        translated = data
+    else:
+        translated = None
+    if not isinstance(translated, str):
+        _set_error(c, "translateParagraph: no text in response")
+        return RELINGO_ERR_PARSE
+
+    out[0] = translated
     return RELINGO_OK

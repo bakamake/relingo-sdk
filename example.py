@@ -29,7 +29,6 @@ import time
 
 import relingo
 
-
 # --- Credentials (plaintext, file mode 0600) -------------------------------
 
 CREDENTIALS_DIR_MODE = 0o700
@@ -43,9 +42,15 @@ def _credentials_path():
         base = xdg
     elif sys.platform == "win32":
         appdata = os.environ.get("APPDATA")
-        base = os.path.join(appdata, "Relingo") if appdata else os.path.expanduser("~/.relingo")
+        base = (
+            os.path.join(appdata, "Relingo")
+            if appdata
+            else os.path.expanduser("~/.relingo")
+        )
     else:
-        xdg_config = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+        xdg_config = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser(
+            "~/.config"
+        )
         base = os.path.join(xdg_config, "relingo")
     return os.path.join(base, "credentials.json")
 
@@ -176,6 +181,7 @@ def _prog_name():
 
 # --- Subcommands -----------------------------------------------------------
 
+
 def cmd_login(args):
     creds = _credentials_load()
     if creds is not None and creds.get("email") == args.email:
@@ -189,9 +195,7 @@ def cmd_login(args):
     try:
         rc = relingo.relingo_authorization(c, args.email)
         if rc != relingo.RELINGO_OK:
-            sys.stderr.write(
-                f"authorization: {relingo.relingo_client_last_error(c)}\n"
-            )
+            sys.stderr.write(f"authorization: {relingo.relingo_client_last_error(c)}\n")
             return 1
         print(f"verification code sent to {args.email}")
 
@@ -299,7 +303,9 @@ def _do_vocab_op(c, word, op_name, sdk_fn):
 def cmd_mark_mastered(args):
     c = _client_from_credentials()
     try:
-        return _do_vocab_op(c, args.word, "mark mastered", relingo.relingo_mark_mastered)
+        return _do_vocab_op(
+            c, args.word, "mark mastered", relingo.relingo_mark_mastered
+        )
     finally:
         relingo.relingo_client_free(c)
 
@@ -307,16 +313,16 @@ def cmd_mark_mastered(args):
 def cmd_mark_forgotten(args):
     c = _client_from_credentials()
     try:
-        return _do_vocab_op(c, args.word, "mark forgotten", relingo.relingo_mark_forgotten)
+        return _do_vocab_op(
+            c, args.word, "mark forgotten", relingo.relingo_mark_forgotten
+        )
     finally:
         relingo.relingo_client_free(c)
 
 
 def _lookup_word(c, vocab, n_vocab, word, out):
     """Try user wordbooks first, then official dict. Returns the rc."""
-    r = relingo.relingo_parse_content3(
-        c, TRANSLATE_TARGET, vocab, n_vocab, word, out
-    )
+    r = relingo.relingo_parse_content3(c, TRANSLATE_TARGET, vocab, n_vocab, word, out)
     if r == relingo.RELINGO_ERR_NOT_FOUND:
         r = relingo.relingo_lookup_dict2(c, TRANSLATE_TARGET, word, out)
     return r
@@ -374,11 +380,11 @@ def cmd_translate(args):
             sys.stderr.write("translate: empty text\n")
             return 1
         out = [None]
-        rc = relingo.relingo_translate_paragraph(c, text, TRANSLATE_TARGET, args.provider, out)
+        rc = relingo.relingo_translate_paragraph(
+            c, text, TRANSLATE_TARGET, args.provider, out
+        )
         if rc != relingo.RELINGO_OK:
-            sys.stderr.write(
-                f"translate: {relingo.relingo_client_last_error(c)}\n"
-            )
+            sys.stderr.write(f"translate: {relingo.relingo_client_last_error(c)}\n")
             return 1
         print(out[0] if out[0] is not None else "")
         return 0
@@ -387,6 +393,7 @@ def cmd_translate(args):
 
 
 # --- Legacy one-shot usage -------------------------------------------------
+
 
 def legacy_main(argv):
     if len(argv) < 2:
@@ -399,9 +406,7 @@ def legacy_main(argv):
     try:
         rc = relingo.relingo_authorization(c, email)
         if rc != relingo.RELINGO_OK:
-            sys.stderr.write(
-                f"authorization: {relingo.relingo_client_last_error(c)}\n"
-            )
+            sys.stderr.write(f"authorization: {relingo.relingo_client_last_error(c)}\n")
             return 1
         print(f"verification code sent to {email}")
 
@@ -445,7 +450,9 @@ def legacy_main(argv):
             relingo.relingo_word_free(w)
 
         out = [None]
-        rc = relingo.relingo_translate_paragraph(c, "Hello, world.", TRANSLATE_TARGET, "1", out)
+        rc = relingo.relingo_translate_paragraph(
+            c, "Hello, world.", TRANSLATE_TARGET, "1", out
+        )
         if rc == relingo.RELINGO_OK:
             print(f"translation: {out[0]}")
 
@@ -456,6 +463,7 @@ def legacy_main(argv):
 
 
 # --- Entry point -----------------------------------------------------------
+
 
 def _build_parser():
     p = argparse.ArgumentParser(
@@ -484,7 +492,7 @@ def _build_parser():
     p_mark.add_argument("flag", choices=["mastered", "forgotten"])
     p_mark.add_argument("word")
     flag_to_func = {
-        "mastered":  cmd_mark_mastered,
+        "mastered": cmd_mark_mastered,
         "forgotten": cmd_mark_forgotten,
     }
     p_mark.set_defaults(func=lambda args: flag_to_func[args.flag](args))
@@ -494,7 +502,9 @@ def _build_parser():
     p_lookup.set_defaults(func=cmd_lookup)
 
     p_tr = sub.add_parser("translate", help="translate a paragraph")
-    p_tr.add_argument("--provider", required=True, help="translation provider id")
+    p_tr.add_argument(
+        "--provider", default="deepseek", help="translation provider id (default: deepseek)"
+    )
     p_tr.add_argument("text", nargs="+", help="text to translate")
     p_tr.set_defaults(func=cmd_translate)
 
@@ -505,11 +515,24 @@ def main(argv=None):
     argv = list(sys.argv if argv is None else argv)
 
     # Legacy: `python3 example.py <email> [word]` (no subcommand)
-    if len(argv) >= 2 and not argv[1].startswith("-") and argv[1] not in {
-        "login", "logout", "whoami", "config", "list",
-        "mark", "lookup", "translate",
-        "-h", "--help", "help",
-    }:
+    if (
+        len(argv) >= 2
+        and not argv[1].startswith("-")
+        and argv[1]
+        not in {
+            "login",
+            "logout",
+            "whoami",
+            "config",
+            "list",
+            "mark",
+            "lookup",
+            "translate",
+            "-h",
+            "--help",
+            "help",
+        }
+    ):
         return legacy_main(argv)
 
     parser = _build_parser()
