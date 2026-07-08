@@ -1,5 +1,0 @@
-{
-  "dependencies": {
-    "@ast-grep/napi": "^0.44.1"
-  }
-}
